@@ -1,4 +1,4 @@
-import { Request, Response, NextFunction } from 'express';
+import { Request, Response, NextFunction, Errback } from 'express';
 import logger from './config/logger';
 
 const NAMESPACE = 'SERVER';
@@ -35,5 +35,18 @@ const rulesMiddleware = (req: Request, res: Response, next: NextFunction) => {
 
   next();
 };
+// figure out error type here
+const errorMiddleware = (
+  _err: Errback,
+  _req: Request,
+  res: Response,
+  _next: NextFunction
+) => {
+  res.status(500).send('Not found.');
+};
 
-export { loggerMiddleware as logger, rulesMiddleware as rules };
+export {
+  errorMiddleware as error,
+  loggerMiddleware as logger,
+  rulesMiddleware as rules,
+};

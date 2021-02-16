@@ -1,84 +1,99 @@
 import { NextFunction, Request, Response } from 'express';
-import mongoose from 'mongoose';
+import { NativeError, Types } from 'mongoose';
+import { check, validationResult } from 'express-validator';
 import Persona from '../models/persona.model';
+import IPersona from '../interfaces/i.persona';
 import logger from '../config/logger';
 
-const createPersona = (req: Request, res: Response, next: NextFunction) => {
-  let { name, arcana, background, level, japaneseName } = req.body;
+const createPersona = async (req: Request, res: Response) => {
+  try {
+    await check('name', 'Name cannot be blank.').not().isEmpty().run(req);
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      res.status(400);
+      errors.throw();
+    }
 
-  const persona = new Persona({
-    name,
-    arcana,
-    background,
-    level,
-    japaneseName,
-  });
-
-  return persona
-    .save()
-    .then((result) => {
-      return res.status(201).json({
-        persona: result,
-      });
-    })
-    .catch((error) => {
-      logger.error('SERVER', error.message, req.body);
-      return res.status(500).json({
-        error: error.message,
-        status: 500,
-      });
+    const { name, arcana, background, level, japaneseName } = req.body;
+    const persona = new Persona({
+      name,
+      arcana,
+      background,
+      level,
+      japaneseName,
     });
+
+    await Persona.findOne(
+      { name },
+      (error: NativeError, existingPersona: IPersona) => {
+        if (error) {
+          logger.error('SERVER', error.message, req.body);
+          throw error;
+        }
+        if (existingPersona) {
+          res.status(200);
+          throw new Error('A Persona with that name already exists.');
+        }
+        persona.save().then((result) => {
+          logger.info('SERVER', 'Persona Created', req.body);
+          return res.status(201).json({
+            persona: result,
+          });
+        });
+      }
+    );
+  } catch (error) {
+    return res.json({ error, statusCode: res.statusCode });
+  }
 };
 
-const getAllPersonas = (_req: Request, res: Response, next: NextFunction) => {
-  Persona.find()
-    .exec()
-    .then((results: string | any[]) => {
-      return res.status(200).json({
-        personas: results,
-        count: results.length,
-      });
-    })
-    .catch((error: { message: any }) => {
+const getAllPersonas = async (
+  _req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  await Persona.find((error, personas) => {
+    if (error) {
       return res.status(500).json({
         message: error.message,
         error,
       });
-    });
+    } else {
+      return res.status(200).json({
+        personas,
+        count: personas.length,
+      });
+    }
+  });
 };
 
+/**
+ * TODO:
+ * - Find by name
+ * - Find by japaneseName
+ * - Find Personas by arcana
+ * - Refactor error handling in other functions
+ */
 const findOnePersona = async (
   req: Request,
   res: Response,
   next: NextFunction
 ) => {
   try {
-    /**
-     * TODO:
-     *  - Remove 'any' types
-     *  - Handle this error: UnhandledPromiseRejectionWarning: Error [ERR_HTTP_HEADERS_SENT]: Cannot set headers after they are sent to the client
-     */
-    const persona = await Persona.findById(req.params.id, (err: any) => {
-      if (err) {
-        res.status(404);
-        return res.json({
-          error: `Persona with ID '${req.params.id}' not found.`,
-          status: res.statusCode,
-        });
+    await Persona.findById(
+      Types.ObjectId(req.params.id),
+      (error: Error, persona: IPersona) => {
+        if (error) {
+          throw error;
+        } else if (!persona) {
+          res.status(404).send(`Persona with ID '${req.params.id}' not found.`);
+        } else {
+          res.status(200).json({ persona });
+        }
       }
-    });
-    if (!persona) {
-      res.status(404);
-      throw new Error(`Persona with ID '${req.params.id}' not found.`);
-    } else {
-      res.status(200);
-      return res.json({
-        persona,
-      });
-    }
+    );
   } catch (error) {
-    console.log('poop');
-    return res.json({ error: error.message, statusCode: res.statusCode });
+    next(error);
   }
 };
 
