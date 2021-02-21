@@ -3,9 +3,12 @@ import { NativeError, Types } from 'mongoose';
 import { check, validationResult } from 'express-validator';
 import Persona from '../models/persona.model';
 import IPersona from '../interfaces/i.persona';
-import logger from '../config/logger';
 
-const createPersona = async (req: Request, res: Response) => {
+const createPersona = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
   try {
     await check('name', 'Name cannot be blank.').not().isEmpty().run(req);
     const errors = validationResult(req);
@@ -27,7 +30,6 @@ const createPersona = async (req: Request, res: Response) => {
       { name },
       (error: NativeError, existingPersona: IPersona) => {
         if (error) {
-          logger.error('SERVER', error.message, req.body);
           throw error;
         }
         if (existingPersona) {
@@ -35,7 +37,6 @@ const createPersona = async (req: Request, res: Response) => {
           throw new Error('A Persona with that name already exists.');
         }
         persona.save().then((result) => {
-          logger.info('SERVER', 'Persona Created', req.body);
           return res.status(201).json({
             persona: result,
           });
@@ -43,7 +44,7 @@ const createPersona = async (req: Request, res: Response) => {
       }
     );
   } catch (error) {
-    return res.json({ error, statusCode: res.statusCode });
+    next(error);
   }
 };
 
@@ -52,19 +53,21 @@ const getAllPersonas = async (
   res: Response,
   next: NextFunction
 ) => {
-  await Persona.find((error, personas) => {
-    if (error) {
-      return res.status(500).json({
-        message: error.message,
-        error,
-      });
-    } else {
-      return res.status(200).json({
-        personas,
-        count: personas.length,
-      });
-    }
-  });
+  try {
+    await Persona.find((error, personas) => {
+      if (error) {
+        res.status(500);
+        throw error;
+      } else {
+        return res.status(200).json({
+          count: personas.length,
+          results: personas,
+        });
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
 };
 
 /**
@@ -72,13 +75,13 @@ const getAllPersonas = async (
  * - Find by name
  * - Find by japaneseName
  * - Find Personas by arcana
- * - Refactor error handling in other functions
  */
 const findOnePersona = async (
   req: Request,
   res: Response,
   next: NextFunction
 ) => {
+  console.log(Types.ObjectId.isValid(req.params.id));
   try {
     await Persona.findById(
       Types.ObjectId(req.params.id),
