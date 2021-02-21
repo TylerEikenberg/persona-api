@@ -1,25 +1,4 @@
-import { Request, Response, NextFunction } from 'express';
-import logger from './config/logger';
-
-const NAMESPACE = 'SERVER';
-/** Log the request */
-const loggerMiddleware = (req: Request, res: Response, next: NextFunction) => {
-  /* Log the req */
-  logger.info(
-    NAMESPACE,
-    `METHOD - [${req.method}], URL - [${req.url}], IP - [${req.socket.remoteAddress}]`
-  );
-
-  res.on('finish', () => {
-    /** Log the res */
-    logger.info(
-      NAMESPACE,
-      `METHOD: [${req.method}] - URL: [${req.url}] - STATUS: [${res.statusCode}] - IP: [${req.socket.remoteAddress}]`
-    );
-  });
-
-  next();
-};
+import { Request, Response, NextFunction, Errback } from 'express';
 
 const rulesMiddleware = (req: Request, res: Response, next: NextFunction) => {
   res.header('Access-Control-Allow-Origin', '*');
@@ -36,4 +15,14 @@ const rulesMiddleware = (req: Request, res: Response, next: NextFunction) => {
   next();
 };
 
-export { loggerMiddleware as logger, rulesMiddleware as rules };
+// figure out error type here
+const errorMiddleware = (
+  _err: Errback,
+  _req: Request,
+  res: Response,
+  _next: NextFunction
+) => {
+  res.status(500).send('Not found.');
+};
+
+export { errorMiddleware as error, rulesMiddleware as rules };
